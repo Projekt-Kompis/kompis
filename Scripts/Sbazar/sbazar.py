@@ -25,7 +25,7 @@ print("\nDescription:\n", parsed_json['description'])
 
 try:
 	connection = mysql.connector.connect(host = credentials.dbhost, \
-	user = credentials.user, passwd = credentials.passwd, db = credentials.db, port = '23616')
+	user = credentials.user, passwd = credentials.passwd, db = credentials.db, port = credentials.port)
 except:
     print("No connection to Database")
     sys.exit(0)
