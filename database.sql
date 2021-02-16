@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Feb 15, 2021 at 06:05 PM
+-- Generation Time: Feb 16, 2021 at 02:35 PM
 -- Server version: 10.5.8-MariaDB
 -- PHP Version: 8.0.2
 
@@ -49,6 +49,28 @@ CREATE TABLE `listing` (
   `price` int(11) DEFAULT NULL,
   `author` varchar(45) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `location` varchar(45) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `time_created` datetime DEFAULT NULL,
+  `name` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `description` longtext COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `store_url` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `time_added` datetime NOT NULL DEFAULT current_timestamp(),
+  `time_updated` timestamp NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `listing_temp`
+--
+
+CREATE TABLE `listing_temp` (
+  `id` int(11) NOT NULL,
+  `store` varchar(45) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `condition` int(11) DEFAULT NULL,
+  `time_expires` datetime DEFAULT NULL,
+  `price` int(11) DEFAULT NULL,
+  `author` varchar(45) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `location` varchar(45) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `time_added` datetime DEFAULT NULL,
   `name` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `description` longtext COLLATE utf8mb4_unicode_ci DEFAULT NULL,
@@ -63,7 +85,7 @@ CREATE TABLE `listing` (
 
 CREATE TABLE `part` (
   `id` int(11) NOT NULL,
-  `model` varchar(45) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `model` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `brand` varchar(45) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `type` enum('case','cpu','gpu','motherboard','optical','os','psu','ram','storage') COLLATE utf8mb4_unicode_ci NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -108,7 +130,7 @@ CREATE TABLE `part_gpu` (
   `id` int(11) NOT NULL,
   `tdp` int(11) DEFAULT NULL,
   `userbenchmark_score` varchar(45) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `userbenchmark_url` varchar(45) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `userbenchmark_url` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `part_id` int(11) NOT NULL,
   `vram` int(11) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -213,6 +235,13 @@ ALTER TABLE `listing`
   ADD KEY `fk_listing_part1_idx` (`part_id`);
 
 --
+-- Indexes for table `listing_temp`
+--
+ALTER TABLE `listing_temp`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `store_url` (`store_url`);
+
+--
 -- Indexes for table `part`
 --
 ALTER TABLE `part`
@@ -297,6 +326,12 @@ ALTER TABLE `cpu_socket`
 -- AUTO_INCREMENT for table `listing`
 --
 ALTER TABLE `listing`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `listing_temp`
+--
+ALTER TABLE `listing_temp`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
