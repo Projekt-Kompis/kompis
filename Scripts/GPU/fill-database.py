@@ -8,8 +8,11 @@ from bs4 import BeautifulSoup
 
 import csv
 import urllib.request
+import re
 
-brands = ["Nvidia", "AMD", "Ati", "Intel"]
+brands = ["nvidia", "amd", "ati"]
+throwawayStrings = [' (SLI Disabled)',' (CrossFire Disabled)']
+OEMs = ['zotac','powercolor','asus','pny','sapphire','msi','gigabyte','msi','xfx','igpu']
 
 try:
 	connection = mysql.connector.connect(host = credentials.dbhost, \
@@ -27,13 +30,15 @@ with open('GPU_UserBenchmarks(1).csv') as csv_file:
 			print(f'Column names are {", ".join(row)}')
 			line_count += 1
 		else:
-			if not row[2] in brands:
+			model = row[3]
+			if not row[2] or not any(ext in row[2].lower() for ext in brands) or any(ext in model.lower() for ext in OEMs):
 				continue
-
-			print(f'\nBrand: {row[2]}\nModel: {row[3]}\nuserbenchmark_score: {row[5]}\nuserbenchmark_url: {row[7]}\ntdp:\nfrequency:')
+			for string in throwawayStrings:
+				model = model.replace(string, "")
+			print(f'\nBrand: {row[2]}\nModel: {model}\nuserbenchmark_score: {row[5]}\nuserbenchmark_url: {row[7]}\ntdp:\nfrequency:')
 			cursor = connection.cursor()
-			sqlIN = "INSERT INTO part (model, type, brand) VALUES (%s, 'gpu', %s) ON DUPLICATE KEY UPDATE model = %s, brand = %s, id=LAST_INSERT_ID(id)"
-			sqlVAL = row[3], row[2], row[3], row[2]
+			sqlIN = "INSERT INTO part (model, type, brand) VALUES (%s, 'gpu', %s) ON DUPLICATE KEY UPDATE model = VALUES(model), brand = VALUES(brand), id=LAST_INSERT_ID(id)"
+			sqlVAL = model, row[2]
 			cursor.execute(sqlIN, sqlVAL)
 			part_id = cursor.lastrowid
 			connection.commit()
