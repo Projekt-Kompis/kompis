@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Feb 16, 2021 at 02:35 PM
+-- Generation Time: Feb 23, 2021 at 01:25 AM
 -- Server version: 10.5.8-MariaDB
 -- PHP Version: 8.0.2
 
@@ -43,18 +43,30 @@ CREATE TABLE `cpu_socket` (
 CREATE TABLE `listing` (
   `id` int(11) NOT NULL,
   `store` varchar(45) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `condition` int(11) DEFAULT NULL,
-  `time_expires` datetime DEFAULT NULL,
+  `item_condition` enum('new','unpacked','used') COLLATE utf8mb4_unicode_ci DEFAULT 'used',
+  `time_expires` timestamp NULL DEFAULT NULL,
   `part_id` int(11) NOT NULL,
   `price` int(11) DEFAULT NULL,
   `author` varchar(45) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `location` varchar(45) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `time_created` datetime DEFAULT NULL,
+  `time_created` timestamp NULL DEFAULT NULL,
   `name` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `description` longtext COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `store_url` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `time_added` datetime NOT NULL DEFAULT current_timestamp(),
+  `time_added` timestamp NOT NULL DEFAULT current_timestamp(),
   `time_updated` timestamp NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `listing_blacklist`
+--
+
+CREATE TABLE `listing_blacklist` (
+  `id` int(11) NOT NULL,
+  `store` varchar(45) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `store_url` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
@@ -146,7 +158,7 @@ CREATE TABLE `part_motherboard` (
   `motherboard_form_factor` varchar(45) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `part_id` int(11) NOT NULL,
   `cpu_socket` varchar(45) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `ddr_version` varchar(45) COLLATE utf8mb4_unicode_ci DEFAULT NULL
+  `ddr_version` int(11) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
@@ -182,7 +194,8 @@ CREATE TABLE `part_os` (
 CREATE TABLE `part_psu` (
   `id` int(11) NOT NULL,
   `psu_form_factor` int(11) DEFAULT NULL,
-  `part_id` int(11) NOT NULL
+  `part_id` int(11) NOT NULL,
+  `wattage` int(11) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
@@ -209,8 +222,8 @@ CREATE TABLE `part_ram` (
 
 CREATE TABLE `part_storage` (
   `id` int(11) NOT NULL,
-  `type` int(11) DEFAULT NULL,
-  `connector` int(11) DEFAULT NULL,
+  `type` enum('ssd','sshd','hdd') COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `connector` enum('sata','m2','nvme') COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `rpm` int(11) DEFAULT NULL,
   `part_id` int(11) NOT NULL,
   `size` int(11) DEFAULT NULL
@@ -235,6 +248,13 @@ ALTER TABLE `listing`
   ADD KEY `fk_listing_part1_idx` (`part_id`);
 
 --
+-- Indexes for table `listing_blacklist`
+--
+ALTER TABLE `listing_blacklist`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `store_url` (`store_url`);
+
+--
 -- Indexes for table `listing_temp`
 --
 ALTER TABLE `listing_temp`
@@ -253,6 +273,7 @@ ALTER TABLE `part`
 --
 ALTER TABLE `part_case`
   ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `part_id` (`part_id`),
   ADD KEY `fk_part_case_part1_idx` (`part_id`);
 
 --
@@ -268,6 +289,7 @@ ALTER TABLE `part_cpu`
 --
 ALTER TABLE `part_gpu`
   ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `part_id` (`part_id`),
   ADD KEY `fk_part_gpu_part1_idx` (`part_id`);
 
 --
@@ -275,6 +297,7 @@ ALTER TABLE `part_gpu`
 --
 ALTER TABLE `part_motherboard`
   ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `part_id` (`part_id`),
   ADD KEY `fk_part_motherboard_part1_idx` (`part_id`);
 
 --
@@ -282,6 +305,7 @@ ALTER TABLE `part_motherboard`
 --
 ALTER TABLE `part_optical`
   ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `part_id` (`part_id`),
   ADD KEY `fk_part_optical_part1_idx` (`part_id`);
 
 --
@@ -289,6 +313,7 @@ ALTER TABLE `part_optical`
 --
 ALTER TABLE `part_os`
   ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `part_id` (`part_id`),
   ADD KEY `fk_part_os_part1_idx` (`part_id`);
 
 --
@@ -296,6 +321,7 @@ ALTER TABLE `part_os`
 --
 ALTER TABLE `part_psu`
   ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `part_id` (`part_id`),
   ADD KEY `fk_part_psu_part1_idx` (`part_id`);
 
 --
@@ -303,6 +329,7 @@ ALTER TABLE `part_psu`
 --
 ALTER TABLE `part_ram`
   ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `part_id` (`part_id`),
   ADD KEY `fk_part_ram_part1_idx` (`part_id`);
 
 --
@@ -310,6 +337,7 @@ ALTER TABLE `part_ram`
 --
 ALTER TABLE `part_storage`
   ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `part_id` (`part_id`),
   ADD KEY `fk_part_storage_part1_idx` (`part_id`);
 
 --
@@ -326,6 +354,12 @@ ALTER TABLE `cpu_socket`
 -- AUTO_INCREMENT for table `listing`
 --
 ALTER TABLE `listing`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `listing_blacklist`
+--
+ALTER TABLE `listing_blacklist`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
