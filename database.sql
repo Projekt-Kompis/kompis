@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Feb 23, 2021 at 01:25 AM
+-- Generation Time: Feb 23, 2021 at 04:37 PM
 -- Server version: 10.5.8-MariaDB
 -- PHP Version: 8.0.2
 
@@ -67,26 +67,6 @@ CREATE TABLE `listing_blacklist` (
   `id` int(11) NOT NULL,
   `store` varchar(45) COLLATE utf8mb4_unicode_ci NOT NULL,
   `store_url` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- --------------------------------------------------------
-
---
--- Table structure for table `listing_temp`
---
-
-CREATE TABLE `listing_temp` (
-  `id` int(11) NOT NULL,
-  `store` varchar(45) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `condition` int(11) DEFAULT NULL,
-  `time_expires` datetime DEFAULT NULL,
-  `price` int(11) DEFAULT NULL,
-  `author` varchar(45) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `location` varchar(45) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `time_added` datetime DEFAULT NULL,
-  `name` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `description` longtext COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `store_url` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
@@ -222,7 +202,7 @@ CREATE TABLE `part_ram` (
 
 CREATE TABLE `part_storage` (
   `id` int(11) NOT NULL,
-  `type` enum('ssd','sshd','hdd') COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `storage_type` enum('ssd','sshd','hdd') COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `connector` enum('sata','m2','nvme') COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `rpm` int(11) DEFAULT NULL,
   `part_id` int(11) NOT NULL,
@@ -251,13 +231,6 @@ ALTER TABLE `listing`
 -- Indexes for table `listing_blacklist`
 --
 ALTER TABLE `listing_blacklist`
-  ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `store_url` (`store_url`);
-
---
--- Indexes for table `listing_temp`
---
-ALTER TABLE `listing_temp`
   ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `store_url` (`store_url`);
 
@@ -360,12 +333,6 @@ ALTER TABLE `listing`
 -- AUTO_INCREMENT for table `listing_blacklist`
 --
 ALTER TABLE `listing_blacklist`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT for table `listing_temp`
---
-ALTER TABLE `listing_temp`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
