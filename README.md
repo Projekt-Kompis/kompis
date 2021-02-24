@@ -6,3 +6,4 @@
 - mysql
 - mysql-connector
 - fuzzywuzzy
+- unidecode
