@@ -140,6 +140,13 @@ def getRAMSize(title):
 				return 0
 	return size * multiplier
 
+def getOpticalType(title, description):
+	searchable = unidecode.unidecode(title.lower() + " " + description.lower())
+	m = re.search(r'br[a-z\-]*|hddvd[a-z\-]*|hd-dvd[a-z\-]*|dvd[a-z\-]*', searchable)
+	if m:
+		return m.group(0)
+	return False
+
 def getMatchingRAMSpeed(title, ddr_version):
 	title = title.lower()
 	speed = 0
@@ -199,6 +206,24 @@ def insertPartRAM(part):
 	connection.commit()
 	return cursor.lastrowid
 
+def insertPartOS(part):
+	print(f"Inserting: {str(part['part_id'])}")
+	cursor = connection.cursor()
+	sqlIN = "INSERT INTO part_os (invoice, part_id) VALUES (%s, %s) ON DUPLICATE KEY UPDATE invoice = VALUES(invoice), id=LAST_INSERT_ID(id)"
+	sqlVAL = part['invoice'], part['part_id']
+	cursor.execute(sqlIN, sqlVAL)
+	connection.commit()
+	return cursor.lastrowid
+
+def insertPartOptical(part):
+	print(f"Inserting: {str(part['part_id'])}")
+	cursor = connection.cursor()
+	sqlIN = "INSERT INTO part_optical (optical_type, part_id) VALUES (%s, %s) ON DUPLICATE KEY UPDATE optical_type = VALUES(optical_type), id=LAST_INSERT_ID(id)"
+	sqlVAL = part['optical_type'], part['part_id']
+	cursor.execute(sqlIN, sqlVAL)
+	connection.commit()
+	return cursor.lastrowid
+
 def isListingPresent(url):
 	cursor = connection.cursor()
 	sqlIN = "SELECT count(*) FROM listing WHERE store_url = %s"
@@ -208,6 +233,14 @@ def isListingPresent(url):
 	if total[0] > 0:
 		return True
 	return False
+
+def isOSWithInvoice(title, description):
+	searchable = unidecode.unidecode(title.lower() + description.lower())
+	return "faktur" in searchable and not "bez faktur" in searchable
+
+def isOpticalDrive(title, description):
+	searchable = unidecode.unidecode(title.lower() + description.lower())
+	return ("mechanik" in searchable or "vypalovack" in searchable) and "disket" not in searchable
 
 def scrapeCPUs():
 	models = getAllCPUModels()
@@ -276,6 +309,7 @@ def scrapeMotherboards():
 def scrapeRAMs():
 	#TODO: filter out flash disks
 	#TODO: deal with laptop ram
+	#TODO: ddr400 is not ddr4
 	sockets = getAllCPUSockets()
 	page = 0;
 	while True:
@@ -304,6 +338,57 @@ def scrapeRAMs():
 			insertListing(listing_details)
 		page += 20
 
+def scrapeOSes():
+	#TODO: filter out listings with no license 
+	sockets = getAllCPUSockets()
+	page = 0;
+	while True:
+		listings = scrapePage(f"https://pc.bazos.cz/software/{page}/")
+		if not listings:
+			return
+		for listing in listings:
+			part = OrderedDict();
+			part_os = OrderedDict();
+			if isListingPresent(listing):
+				return
+			listing_details = loadListing(listing)
+			if not listing_details:
+				continue
+			if "windows " not in listing_details['name'].lower():
+				continue
+			part['model'] = listing_details['name']
+			part['brand'] = listing_details['name'].split(" ")[0]
+			part['type'] = 'os'
+			part_os['invoice'] = isOSWithInvoice(listing_details['name'], listing_details['description'])
+			listing_details['part_id'] = part_os['part_id'] = insertPart(part)
+			insertPartOS(part_os)
+			insertListing(listing_details)
+		page += 20
+
+def scrapeOptical():
+	sockets = getAllCPUSockets()
+	page = 0;
+	while True:
+		listings = scrapePage(f"https://pc.bazos.cz/cd/{page}/")
+		if not listings:
+			return
+		for listing in listings:
+			part = OrderedDict();
+			part_optical = OrderedDict();
+			if isListingPresent(listing):
+				return
+			listing_details = loadListing(listing)
+			if not listing_details or not isOpticalDrive(listing_details['name'], listing_details['description']):
+				continue
+			part['model'] = listing_details['name']
+			part['brand'] = listing_details['name'].split(" ")[0]
+			part['type'] = 'optical'
+			part_optical['optical_type'] = getOpticalType(listing_details['name'], listing_details['description'])
+			listing_details['part_id'] = part_optical['part_id'] = insertPart(part)
+			insertPartOptical(part_optical)
+			insertListing(listing_details)
+		page += 20
+
 
 try:
 	connection = mysql.connector.connect(host = credentials.dbhost, \
@@ -311,10 +396,11 @@ try:
 except:
     print("No connection to Database")
     sys.exit(0)
-print("Connection succesfull!")
+print("Connection successful!")
 
 scrapeCPUs()
 scrapeGPUs()
 scrapeMotherboards()
 scrapeRAMs()
-
+scrapeOSes()
+scrapeOptical()
