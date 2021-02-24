@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Feb 24, 2021 at 12:43 AM
+-- Generation Time: Feb 24, 2021 at 08:29 PM
 -- Server version: 10.5.8-MariaDB
 -- PHP Version: 8.0.2
 
@@ -149,7 +149,7 @@ CREATE TABLE `part_motherboard` (
 
 CREATE TABLE `part_optical` (
   `id` int(11) NOT NULL,
-  `type` varchar(45) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `optical_type` varchar(45) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `part_id` int(11) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -203,7 +203,7 @@ CREATE TABLE `part_ram` (
 CREATE TABLE `part_storage` (
   `id` int(11) NOT NULL,
   `storage_type` enum('ssd','sshd','hdd') COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `connector` enum('sata','m2','nvme') COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `connector` enum('sata','m2','nvme','usb') COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `rpm` int(11) DEFAULT NULL,
   `part_id` int(11) NOT NULL,
   `size` int(11) DEFAULT NULL

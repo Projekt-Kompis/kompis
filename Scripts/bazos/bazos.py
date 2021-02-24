@@ -39,8 +39,10 @@ def loadListing(url):
 	listing['location'] = information['Lokalita:'].find_next_sibling('td').text
 	listing['time_created'] = datetimeobject.strftime('%Y-%m-%d %H:%M:%S')
 	searchable = unidecode.unidecode(listing['name'].lower() + listing['description'].lower()) #unidecode removes diacritics
-	if "koupim" in searchable or "prodano" in searchable or "vymenim" in searchable:
-		return False
+	blacklist = ['koupim', 'prodano', 'vymenim', 'nefunkcn', 'rozbit', 'poskozen']
+	for word in blacklist:
+		if word in searchable:
+			return False
 	if ("nove" in searchable or "novy" in searchable or "nova" in searchable or "novou" in searchable or "nerozbalen" in searchable) and not "jako nov" in searchable:
 		listing['item_condition'] = 'new'
 	elif "zánovní" in searchable:
@@ -140,6 +142,58 @@ def getRAMSize(title):
 				return 0
 	return size * multiplier
 
+def getStorageSize(title):
+	title = title.lower()
+	multiplier = 1
+	size = 0
+	if "gb" in title:
+		multiplier = 1024
+		unit = "gb"
+	elif "mb" in title:
+		unit = "mb"
+	elif "tb" in title:
+		multiplier = 1024*1024
+		unit = "tb"
+	else:
+		print("Unable to determine storage size")
+		return 0
+	try:
+		return int(re.findall(r'\d+', title.split(unit)[0].strip())[-1]) * multiplier
+	except:
+		print(f"> {title}")
+		print("Unable to determine storage size")
+		return 0
+
+def getStorageType(title, description):
+	searchable = unidecode.unidecode(title.lower() + description.lower())
+	if "ssd" in searchable:
+		return "ssd"
+	if "sshd" in searchable or "hybrid" in searchable:
+		return "sshd"
+	return "hdd"
+
+def getStorageConnector(title, description):
+	searchable =  re.sub(r'[^a-z]', '', unidecode.unidecode(title.lower() + description.lower()))
+	if "nvme" in searchable or "pcie" in searchable:
+		return "nvme"
+	if "m2" in searchable:
+		return "m2"
+	if "usb" in searchable:
+		return "usb"
+	if "ide" in searchable:
+		return "ide"
+	if "nas" in searchable:
+		return "nas"
+	return "sata"
+
+def getStorageRPM(title, description):
+	searchable = re.sub(r'[^0-9]', '', unidecode.unidecode(title.lower() + description.lower()))
+	commonspeeds = [5400, 7200, 5900]
+	for speed in commonspeeds:
+		if str(speed) in searchable:
+			return speed
+	return 0
+
 def getOpticalType(title, description):
 	searchable = unidecode.unidecode(title.lower() + " " + description.lower())
 	m = re.search(r'br[a-z\-]*|hddvd[a-z\-]*|hd-dvd[a-z\-]*|dvd[a-z\-]*', searchable)
@@ -202,6 +256,15 @@ def insertPartRAM(part):
 	cursor = connection.cursor()
 	sqlIN = "INSERT INTO part_ram (ddr_version, speed, size, part_id) VALUES (%s, %s, %s, %s) ON DUPLICATE KEY UPDATE ddr_version = VALUES(ddr_version), speed = VALUES(speed), id=LAST_INSERT_ID(id)"
 	sqlVAL = part['ddr_version'], part['speed'], part['size'], part['part_id']
+	cursor.execute(sqlIN, sqlVAL)
+	connection.commit()
+	return cursor.lastrowid
+
+def insertPartStorage(part):
+	print(f"Inserting: {str(part['part_id'])}")
+	cursor = connection.cursor()
+	sqlIN = "INSERT INTO part_storage (storage_type, connector, rpm, size, part_id) VALUES (%s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE storage_type = VALUES(storage_type), connector = VALUES(connector), rpm = VALUES(rpm), size = VALUES(size), id=LAST_INSERT_ID(id)"
+	sqlVAL = part['storage_type'], part['connector'], part['rpm'], part['size'], part['part_id']
 	cursor.execute(sqlIN, sqlVAL)
 	connection.commit()
 	return cursor.lastrowid
@@ -310,7 +373,6 @@ def scrapeRAMs():
 	#TODO: filter out flash disks
 	#TODO: deal with laptop ram
 	#TODO: ddr400 is not ddr4
-	sockets = getAllCPUSockets()
 	page = 0;
 	while True:
 		listings = scrapePage(f"https://pc.bazos.cz/pamet/{page}/")
@@ -340,7 +402,6 @@ def scrapeRAMs():
 
 def scrapeOSes():
 	#TODO: filter out listings with no license 
-	sockets = getAllCPUSockets()
 	page = 0;
 	while True:
 		listings = scrapePage(f"https://pc.bazos.cz/software/{page}/")
@@ -366,7 +427,6 @@ def scrapeOSes():
 		page += 20
 
 def scrapeOptical():
-	sockets = getAllCPUSockets()
 	page = 0;
 	while True:
 		listings = scrapePage(f"https://pc.bazos.cz/cd/{page}/")
@@ -389,6 +449,38 @@ def scrapeOptical():
 			insertListing(listing_details)
 		page += 20
 
+def scrapeStorage():
+	page = 0;
+	while True:
+		listings = scrapePage(f"https://pc.bazos.cz/hdd/{page}/")
+		if not listings:
+			return
+		for listing in listings:
+			part = OrderedDict();
+			part_storage = OrderedDict();
+			if isListingPresent(listing):
+				return
+			listing_details = loadListing(listing)
+			if not listing_details:
+				continue
+			part['model'] = listing_details['name']
+			part['brand'] = listing_details['name'].split(" ")[0]
+			part['type'] = 'storage'
+			part_storage['size'] = getStorageSize(listing_details['name'])
+			if part_storage['size'] < 32000:
+				continue
+			part_storage['storage_type'] = getStorageType(listing_details['name'], listing_details['description'])
+			part_storage['connector'] = getStorageConnector(listing_details['name'], listing_details['description'])
+			if part_storage['connector'] == "ide" or part_storage['connector'] == "nas":
+				continue
+			part_storage['rpm'] = getStorageRPM(listing_details['name'], listing_details['description'])
+			print(part)
+			print(part_storage)
+			print("==================")
+			listing_details['part_id'] = part_storage['part_id'] = insertPart(part)
+			insertPartStorage(part_storage)
+			insertListing(listing_details)
+		page += 20
 
 try:
 	connection = mysql.connector.connect(host = credentials.dbhost, \
@@ -404,3 +496,4 @@ scrapeMotherboards()
 scrapeRAMs()
 scrapeOSes()
 scrapeOptical()
+scrapeStorage()
