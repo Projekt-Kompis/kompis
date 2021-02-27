@@ -3,8 +3,8 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Feb 24, 2021 at 08:29 PM
--- Server version: 10.5.8-MariaDB
+-- Generation Time: Feb 27, 2021 at 11:04 PM
+-- Server version: 10.5.9-MariaDB
 -- PHP Version: 8.0.2
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
@@ -24,14 +24,79 @@ SET time_zone = "+00:00";
 -- --------------------------------------------------------
 
 --
--- Table structure for table `cpu_socket`
+-- Table structure for table `account`
 --
 
-CREATE TABLE `cpu_socket` (
+CREATE TABLE `account` (
   `id` int(11) NOT NULL,
-  `name` varchar(45) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `brand` varchar(45) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `ddr_version` int(11) DEFAULT NULL
+  `username` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `password` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `email` varchar(320) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `ip_address` varbinary(16) DEFAULT NULL,
+  `usercol` varchar(45) COLLATE utf8mb4_unicode_ci DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `assembly`
+--
+
+CREATE TABLE `assembly` (
+  `id` int(11) NOT NULL,
+  `name` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `account_id` int(11) DEFAULT NULL,
+  `visibility` enum('private','unlisted','public') COLLATE utf8mb4_unicode_ci DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `assembly_listing`
+--
+
+CREATE TABLE `assembly_listing` (
+  `id` int(11) NOT NULL,
+  `listing_id` int(11) NOT NULL,
+  `assembly_revision_id` int(11) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `assembly_revision`
+--
+
+CREATE TABLE `assembly_revision` (
+  `id` int(11) NOT NULL,
+  `time_created` timestamp NULL DEFAULT current_timestamp(),
+  `assembly_id` int(11) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `comment`
+--
+
+CREATE TABLE `comment` (
+  `id` int(11) NOT NULL,
+  `account_id` int(11) NOT NULL,
+  `assembly_id` int(11) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `comment_revision`
+--
+
+CREATE TABLE `comment_revision` (
+  `id` int(11) NOT NULL,
+  `comment_id` int(11) NOT NULL,
+  `text` longtext COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `rating` tinyint(4) DEFAULT NULL,
+  `comment_revisioncol` varchar(45) COLLATE utf8mb4_unicode_ci DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
@@ -214,10 +279,48 @@ CREATE TABLE `part_storage` (
 --
 
 --
--- Indexes for table `cpu_socket`
+-- Indexes for table `account`
 --
-ALTER TABLE `cpu_socket`
-  ADD PRIMARY KEY (`id`);
+ALTER TABLE `account`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `username_UNIQUE` (`username`);
+
+--
+-- Indexes for table `assembly`
+--
+ALTER TABLE `assembly`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `fk_assembly_user1_idx` (`account_id`);
+
+--
+-- Indexes for table `assembly_listing`
+--
+ALTER TABLE `assembly_listing`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `fk_assembly_listing_listing1_idx` (`listing_id`),
+  ADD KEY `fk_assembly_listing_assembly_revision1_idx` (`assembly_revision_id`);
+
+--
+-- Indexes for table `assembly_revision`
+--
+ALTER TABLE `assembly_revision`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `fk_assembly_revision_assembly1_idx` (`assembly_id`);
+
+--
+-- Indexes for table `comment`
+--
+ALTER TABLE `comment`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `fk_comment_user1_idx` (`account_id`),
+  ADD KEY `fk_comment_assembly1_idx` (`assembly_id`);
+
+--
+-- Indexes for table `comment_revision`
+--
+ALTER TABLE `comment_revision`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `fk_comment_revision_comment1_idx` (`comment_id`);
 
 --
 -- Indexes for table `listing`
@@ -318,9 +421,33 @@ ALTER TABLE `part_storage`
 --
 
 --
--- AUTO_INCREMENT for table `cpu_socket`
+-- AUTO_INCREMENT for table `account`
 --
-ALTER TABLE `cpu_socket`
+ALTER TABLE `account`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `assembly`
+--
+ALTER TABLE `assembly`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `assembly_revision`
+--
+ALTER TABLE `assembly_revision`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `comment`
+--
+ALTER TABLE `comment`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `comment_revision`
+--
+ALTER TABLE `comment_revision`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
@@ -398,6 +525,38 @@ ALTER TABLE `part_storage`
 --
 -- Constraints for dumped tables
 --
+
+--
+-- Constraints for table `assembly`
+--
+ALTER TABLE `assembly`
+  ADD CONSTRAINT `fk_assembly_user1` FOREIGN KEY (`account_id`) REFERENCES `account` (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION;
+
+--
+-- Constraints for table `assembly_listing`
+--
+ALTER TABLE `assembly_listing`
+  ADD CONSTRAINT `fk_assembly_listing_assembly_revision1` FOREIGN KEY (`assembly_revision_id`) REFERENCES `assembly_revision` (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION,
+  ADD CONSTRAINT `fk_assembly_listing_listing1` FOREIGN KEY (`listing_id`) REFERENCES `listing` (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION;
+
+--
+-- Constraints for table `assembly_revision`
+--
+ALTER TABLE `assembly_revision`
+  ADD CONSTRAINT `fk_assembly_revision_assembly1` FOREIGN KEY (`assembly_id`) REFERENCES `assembly` (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION;
+
+--
+-- Constraints for table `comment`
+--
+ALTER TABLE `comment`
+  ADD CONSTRAINT `fk_comment_assembly1` FOREIGN KEY (`assembly_id`) REFERENCES `assembly` (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION,
+  ADD CONSTRAINT `fk_comment_user1` FOREIGN KEY (`account_id`) REFERENCES `account` (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION;
+
+--
+-- Constraints for table `comment_revision`
+--
+ALTER TABLE `comment_revision`
+  ADD CONSTRAINT `fk_comment_revision_comment1` FOREIGN KEY (`comment_id`) REFERENCES `comment` (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION;
 
 --
 -- Constraints for table `listing`
