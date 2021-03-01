@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Mar 01, 2021 at 02:32 AM
+-- Generation Time: Mar 01, 2021 at 03:51 AM
 -- Server version: 10.5.9-MariaDB
 -- PHP Version: 8.0.2
 
@@ -58,7 +58,9 @@ CREATE TABLE `assembly` (
 CREATE TABLE `assembly_comment` (
   `id` int(11) NOT NULL,
   `account_id` int(11) NOT NULL,
-  `assembly_id` int(11) NOT NULL
+  `assembly_id` int(11) NOT NULL,
+  `parent_assembly_comment_id` int(11) DEFAULT NULL,
+  `time_created` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
@@ -70,7 +72,8 @@ CREATE TABLE `assembly_comment` (
 CREATE TABLE `assembly_comment_revision` (
   `id` int(11) NOT NULL,
   `comment_id` int(11) NOT NULL,
-  `text` longtext COLLATE utf8mb4_unicode_ci DEFAULT NULL
+  `text` longtext COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `time_created` timestamp NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
@@ -309,7 +312,8 @@ ALTER TABLE `assembly`
 ALTER TABLE `assembly_comment`
   ADD PRIMARY KEY (`id`),
   ADD KEY `fk_comment_user1_idx` (`account_id`),
-  ADD KEY `fk_comment_assembly1_idx` (`assembly_id`);
+  ADD KEY `fk_comment_assembly1_idx` (`assembly_id`),
+  ADD KEY `fk_assembly_comment_assembly_comment1_idx` (`parent_assembly_comment_id`);
 
 --
 -- Indexes for table `assembly_comment_revision`
@@ -567,6 +571,7 @@ ALTER TABLE `assembly`
 -- Constraints for table `assembly_comment`
 --
 ALTER TABLE `assembly_comment`
+  ADD CONSTRAINT `fk_assembly_comment_assembly_comment1` FOREIGN KEY (`parent_assembly_comment_id`) REFERENCES `assembly_comment` (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION,
   ADD CONSTRAINT `fk_comment_assembly1` FOREIGN KEY (`assembly_id`) REFERENCES `assembly` (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION,
   ADD CONSTRAINT `fk_comment_user1` FOREIGN KEY (`account_id`) REFERENCES `account` (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION;
 
