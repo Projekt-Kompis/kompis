@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Feb 27, 2021 at 11:04 PM
+-- Generation Time: Mar 01, 2021 at 02:05 AM
 -- Server version: 10.5.9-MariaDB
 -- PHP Version: 8.0.2
 
@@ -430,6 +430,12 @@ ALTER TABLE `account`
 -- AUTO_INCREMENT for table `assembly`
 --
 ALTER TABLE `assembly`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `assembly_listing`
+--
+ALTER TABLE `assembly_listing`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --

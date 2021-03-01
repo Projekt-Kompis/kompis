@@ -11,6 +11,9 @@ from datetime import datetime
 import unidecode
 import re
 
+#TODO: arguments for scrape functions so you can also use them to update listings (all these have to do is disable the if check)
+#TODO: ability to run the script and only update one category of parts
+
 def loadListing(url):
 	page = requests.get(url)
 	soup = BeautifulSoup(page.content, 'html.parser')
@@ -101,7 +104,7 @@ def getMatchingCPUSocket(title, description, sockets):
 	#TODO: chipset based socket detection
 	searchable = unidecode.unidecode(title.lower() + description.lower())
 	for socket in sockets:
-		if socket[0] in searchable:
+		if socket[0].lower() in searchable and len(socket[0]) > 2:
 			return socket[0]
 	return 0
 
