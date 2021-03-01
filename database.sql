@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Mar 01, 2021 at 07:04 PM
+-- Generation Time: Mar 01, 2021 at 07:09 PM
 -- Server version: 10.5.9-MariaDB
 -- PHP Version: 8.0.2
 
@@ -306,7 +306,10 @@ ALTER TABLE `account`
 --
 ALTER TABLE `assembly`
   ADD PRIMARY KEY (`id`),
-  ADD KEY `fk_assembly_user1_idx` (`account_id`);
+  ADD KEY `fk_assembly_user1_idx` (`account_id`),
+  ADD KEY `visibility` (`visibility`),
+  ADD KEY `points_average` (`points_average`),
+  ADD KEY `points_average_weighted` (`points_average_weighted`);
 
 --
 -- Indexes for table `assembly_comment`
@@ -345,7 +348,8 @@ ALTER TABLE `assembly_rating`
 --
 ALTER TABLE `assembly_revision`
   ADD PRIMARY KEY (`id`),
-  ADD KEY `fk_assembly_revision_assembly1_idx` (`assembly_id`);
+  ADD KEY `fk_assembly_revision_assembly1_idx` (`assembly_id`),
+  ADD KEY `time_created` (`time_created`);
 
 --
 -- Indexes for table `listing`
