@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Mar 01, 2021 at 03:51 AM
+-- Generation Time: Mar 01, 2021 at 07:04 PM
 -- Server version: 10.5.9-MariaDB
 -- PHP Version: 8.0.2
 
@@ -46,7 +46,9 @@ CREATE TABLE `assembly` (
   `id` int(11) NOT NULL,
   `name` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `account_id` int(11) DEFAULT NULL,
-  `visibility` enum('private','unlisted','public') COLLATE utf8mb4_unicode_ci DEFAULT NULL
+  `visibility` enum('private','unlisted','public') COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `points_average` int(11) NOT NULL DEFAULT 3,
+  `points_average_weighted` float NOT NULL DEFAULT 3
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
