@@ -11,8 +11,10 @@ from datetime import datetime
 import unidecode
 import re
 
-#TODO: arguments for scrape functions so you can also use them to update listings (all these have to do is disable the if check)
 #TODO: ability to run the script and only update one category of parts
+
+def doCommonNameReplacements(string):
+	return string.lower().replace("-"," ").replace("ti", " ti").replace("  "," ").replace("pen tium","pentium").strip()
 
 def loadListing(url):
 	page = requests.get(url)
@@ -87,14 +89,16 @@ def getAllGPUModels():
 
 def getMatchingModelID(title, description, models):
 	finalratio = 0
+	finallength = 0
 	currentmodel = 0
 	currentmodelname = ""
 	for model in models:
-		ratio = (fuzz.partial_ratio(model[1], title) * 4) + fuzz.partial_ratio(model[1], description)
-		if ratio > finalratio:
+		ratio = (fuzz.partial_ratio(doCommonNameReplacements(model[1]), doCommonNameReplacements(title)) * 4) + fuzz.partial_ratio(doCommonNameReplacements(model[1]), doCommonNameReplacements(description))
+		if ratio > finalratio or (ratio == finalratio and len(model[1]) > finallength):
 			finalratio = ratio
 			currentmodel = model[0]
 			currentmodelname = model[1]
+			finallength = len(model[1])
 	print(f"{title} - {currentmodelname} - {finalratio}")
 	if(finalratio < 400):
 		return False
@@ -316,7 +320,7 @@ def scrapeCPUs():
 		if not listings:
 			return
 		for listing in listings:
-			if isListingPresent(listing):
+			if isListingPresent(listing) and not doUpdate:
 				return
 			listing_details = loadListing(listing)
 			if not listing_details:
@@ -335,7 +339,7 @@ def scrapeGPUs():
 		if not listings:
 			return
 		for listing in listings:
-			if isListingPresent(listing):
+			if isListingPresent(listing) and not doUpdate:
 				return
 			listing_details = loadListing(listing)
 			if not listing_details:
@@ -356,7 +360,7 @@ def scrapeMotherboards():
 		for listing in listings:
 			part = OrderedDict();
 			part_motherboard = OrderedDict();
-			if isListingPresent(listing):
+			if isListingPresent(listing) and not doUpdate:
 				return
 			listing_details = loadListing(listing)
 			if not listing_details:
@@ -384,7 +388,7 @@ def scrapeRAMs():
 		for listing in listings:
 			part = OrderedDict();
 			part_ram = OrderedDict();
-			if isListingPresent(listing):
+			if isListingPresent(listing) and not doUpdate:
 				return
 			listing_details = loadListing(listing)
 			if not listing_details:
@@ -413,7 +417,7 @@ def scrapeOSes():
 		for listing in listings:
 			part = OrderedDict();
 			part_os = OrderedDict();
-			if isListingPresent(listing):
+			if isListingPresent(listing) and not doUpdate:
 				return
 			listing_details = loadListing(listing)
 			if not listing_details:
@@ -438,7 +442,7 @@ def scrapeOptical():
 		for listing in listings:
 			part = OrderedDict();
 			part_optical = OrderedDict();
-			if isListingPresent(listing):
+			if isListingPresent(listing) and not doUpdate:
 				return
 			listing_details = loadListing(listing)
 			if not listing_details or not isOpticalDrive(listing_details['name'], listing_details['description']):
@@ -461,7 +465,7 @@ def scrapeStorage():
 		for listing in listings:
 			part = OrderedDict();
 			part_storage = OrderedDict();
-			if isListingPresent(listing):
+			if isListingPresent(listing) and not doUpdate:
 				return
 			listing_details = loadListing(listing)
 			if not listing_details:
@@ -492,6 +496,10 @@ except:
     print("No connection to Database")
     sys.exit(0)
 print("Connection successful!")
+
+doUpdate = False;
+if "--update" in sys.argv:
+	doUpdate = True;
 
 scrapeCPUs()
 scrapeGPUs()
