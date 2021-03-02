@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Mar 01, 2021 at 07:09 PM
+-- Generation Time: Mar 02, 2021 at 02:54 AM
 -- Server version: 10.5.9-MariaDB
 -- PHP Version: 8.0.2
 
@@ -31,9 +31,7 @@ CREATE TABLE `account` (
   `id` int(11) NOT NULL,
   `username` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `password` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `email` varchar(320) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `ip_address` varbinary(16) DEFAULT NULL,
-  `usercol` varchar(45) COLLATE utf8mb4_unicode_ci DEFAULT NULL
+  `email` varchar(320) COLLATE utf8mb4_unicode_ci DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
@@ -47,8 +45,8 @@ CREATE TABLE `assembly` (
   `name` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `account_id` int(11) DEFAULT NULL,
   `visibility` enum('private','unlisted','public') COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `points_average` int(11) NOT NULL DEFAULT 3,
-  `points_average_weighted` float NOT NULL DEFAULT 3
+  `points_average` float NOT NULL DEFAULT 5,
+  `points_average_weighted` float NOT NULL DEFAULT 5
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
@@ -98,9 +96,9 @@ CREATE TABLE `assembly_listing` (
 
 CREATE TABLE `assembly_rating` (
   `id` int(11) NOT NULL,
-  `assembly_revision_id` int(11) NOT NULL,
+  `points` int(11) NOT NULL,
   `account_id` int(11) NOT NULL,
-  `points` int(11) NOT NULL
+  `assembly_id` int(11) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
@@ -135,7 +133,8 @@ CREATE TABLE `listing` (
   `description` longtext COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `store_url` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `time_added` timestamp NOT NULL DEFAULT current_timestamp(),
-  `time_updated` timestamp NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `time_updated` timestamp NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `is_invalid` tinyint(1) NOT NULL DEFAULT 0
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
@@ -340,8 +339,9 @@ ALTER TABLE `assembly_listing`
 --
 ALTER TABLE `assembly_rating`
   ADD PRIMARY KEY (`id`),
-  ADD KEY `fk_assembly_rating_assembly_revision1_idx` (`assembly_revision_id`),
-  ADD KEY `fk_assembly_rating_account1_idx` (`account_id`);
+  ADD UNIQUE KEY `unique_account_assembly` (`account_id`,`assembly_id`),
+  ADD KEY `fk_assembly_rating_account1_idx` (`account_id`),
+  ADD KEY `fk_assembly_rating_assembly1_idx` (`assembly_id`);
 
 --
 -- Indexes for table `assembly_revision`
@@ -599,7 +599,7 @@ ALTER TABLE `assembly_listing`
 --
 ALTER TABLE `assembly_rating`
   ADD CONSTRAINT `fk_assembly_rating_account1` FOREIGN KEY (`account_id`) REFERENCES `account` (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION,
-  ADD CONSTRAINT `fk_assembly_rating_assembly_revision1` FOREIGN KEY (`assembly_revision_id`) REFERENCES `assembly_revision` (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION;
+  ADD CONSTRAINT `fk_assembly_rating_assembly1` FOREIGN KEY (`assembly_id`) REFERENCES `assembly` (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION;
 
 --
 -- Constraints for table `assembly_revision`
