@@ -14,7 +14,7 @@ import re
 #TODO: ability to run the script and only update one category of parts
 
 def doCommonNameReplacements(string):
-	return string.lower().replace("-"," ").replace("ti", " ti").replace("  "," ").replace("pen tium","pentium").strip()
+	return string.lower().replace("-"," ").replace("ti", " ti").replace("super"," super").replace("  "," ").replace("pen tium","pentium").strip()
 
 def loadListing(url):
 	page = requests.get(url)
@@ -38,6 +38,8 @@ def loadListing(url):
 	try:
 		listing['price'] = int(listing['price'])
 	except:
+		listing['price'] = 0
+	if listing['price'] < 10: #assuming negotiated price ("cena dohodou")
 		listing['price'] = 0
 	listing['store_url'] = url
 	listing['description'] = description
@@ -276,6 +278,15 @@ def insertPartStorage(part):
 	connection.commit()
 	return cursor.lastrowid
 
+def insertPartCase(part):
+	print(f"Inserting: {str(part['part_id'])}")
+	cursor = connection.cursor()
+	sqlIN = "INSERT INTO part_case (motherboard_form_factor, psu_form_factor, part_id) VALUES (%s, %s, %s) ON DUPLICATE KEY UPDATE motherboard_form_factor = VALUES(motherboard_form_factor), psu_form_factor = VALUES(psu_form_factor), id=LAST_INSERT_ID(id)"
+	sqlVAL = part['motherboard_form_factor'], part['psu_form_factor'], part['part_id']
+	cursor.execute(sqlIN, sqlVAL)
+	connection.commit()
+	return cursor.lastrowid
+
 def insertPartOS(part):
 	print(f"Inserting: {str(part['part_id'])}")
 	cursor = connection.cursor()
@@ -307,6 +318,10 @@ def isListingPresent(url):
 def isOSWithInvoice(title, description):
 	searchable = unidecode.unidecode(title.lower() + description.lower())
 	return "faktur" in searchable and not "bez faktur" in searchable
+
+def isCaseListing(title, description):
+	searchable = unidecode.unidecode(title.lower() + description.lower())
+	return "case" in searchable or "skrin" in searchable
 
 def isOpticalDrive(title, description):
 	searchable = unidecode.unidecode(title.lower() + description.lower())
@@ -489,6 +504,33 @@ def scrapeStorage():
 			insertListing(listing_details)
 		page += 20
 
+def scrapeCases():
+	page = 0;
+	while True:
+		listings = scrapePage(f"https://pc.bazos.cz/case/{page}/")
+		if not listings:
+			return
+		for listing in listings:
+			part = OrderedDict();
+			part_case = OrderedDict();
+			if isListingPresent(listing) and not doUpdate:
+				return
+			listing_details = loadListing(listing)
+			if not listing_details or not isCaseListing(listing_details['name'], listing_details['description']):
+				continue
+			part['model'] = listing_details['name']
+			part['brand'] = listing_details['name'].split(" ")[0]
+			part['type'] = 'case'
+			part_case['motherboard_form_factor'] = 'ATX'
+			part_case['psu_form_factor'] = 'ATX'
+			print(part)
+			print(part_case)
+			print("==================")
+			listing_details['part_id'] = part_case['part_id'] = insertPart(part)
+			insertPartCase(part_case)
+			insertListing(listing_details)
+		page += 20
+
 try:
 	connection = mysql.connector.connect(host = credentials.dbhost, \
 	user = credentials.user, passwd = credentials.passwd, db = credentials.db, port = credentials.port)
@@ -501,6 +543,7 @@ doUpdate = False;
 if "--update" in sys.argv:
 	doUpdate = True;
 
+scrapeCases()
 scrapeCPUs()
 scrapeGPUs()
 scrapeMotherboards()

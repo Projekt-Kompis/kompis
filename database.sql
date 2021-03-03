@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Mar 02, 2021 at 02:54 AM
+-- Generation Time: Mar 03, 2021 at 02:48 AM
 -- Server version: 10.5.9-MariaDB
 -- PHP Version: 8.0.2
 
@@ -170,8 +170,8 @@ CREATE TABLE `part` (
 
 CREATE TABLE `part_case` (
   `id` int(11) NOT NULL,
-  `motherboard_form_factor` int(11) DEFAULT NULL,
-  `psu_form_factor` int(11) DEFAULT NULL,
+  `motherboard_form_factor` varchar(45) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `psu_form_factor` varchar(45) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `part_id` int(11) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
