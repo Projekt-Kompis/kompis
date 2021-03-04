@@ -20,6 +20,9 @@ def loadListing(url):
 	page = requests.get(url)
 	soup = BeautifulSoup(page.content, 'html.parser')
 
+	if "<b>Inzerát byl vymazán.</b>" in str(page.content.decode('utf-8')):
+		return False;
+
 	information = OrderedDict()
 	title_tag = soup.find('h1', attrs = {'class' : 'nadpis'})
 	date_tag = title_tag.find_next_sibling('span', attrs = {'class' : 'velikost10'})
@@ -39,7 +42,7 @@ def loadListing(url):
 		listing['price'] = int(listing['price'])
 	except:
 		listing['price'] = 0
-	if listing['price'] < 10: #assuming negotiated price ("cena dohodou")
+	if listing['price'] < 10 or listing['price'] == 1234: #assuming negotiated price ("cena dohodou")
 		listing['price'] = 0
 	listing['store_url'] = url
 	listing['description'] = description
@@ -50,6 +53,8 @@ def loadListing(url):
 	for word in blacklist:
 		if word in searchable:
 			return False
+	if "cena v eur" in searchable:
+		listing['price'] = int(listing['price'] * 26.1)
 	if ("nove" in searchable or "novy" in searchable or "nova" in searchable or "novou" in searchable or "nerozbalen" in searchable) and not "jako nov" in searchable:
 		listing['item_condition'] = 'new'
 	elif "zánovní" in searchable:
@@ -315,6 +320,15 @@ def isListingPresent(url):
 		return True
 	return False
 
+def setListingInvalid(store_url):
+	print(f"Marking {store_url} as invalid")
+	cursor = connection.cursor()
+	sqlIN = "UPDATE listing SET is_invalid = 1 WHERE store_url = %s"
+	sqlVAL = [store_url]
+	cursor.execute(sqlIN, sqlVAL)
+	connection.commit()
+	return True
+
 def isOSWithInvoice(title, description):
 	searchable = unidecode.unidecode(title.lower() + description.lower())
 	return "faktur" in searchable and not "bez faktur" in searchable
@@ -531,6 +545,32 @@ def scrapeCases():
 			insertListing(listing_details)
 		page += 20
 
+def updateAll():
+	cursor = connection.cursor()
+	cursor.execute("SELECT part_id, store_url FROM listing WHERE is_invalid = 0 AND store = 'bazos'")
+	listings = cursor.fetchall()
+	for listing in listings:
+		print(listing)
+		part = OrderedDict();
+		part_case = OrderedDict();
+		listing_details = loadListing(listing[1])
+		if not listing_details:
+			setListingInvalid(listing[1])
+			continue
+		listing_details['part_id'] = listing[0]
+		insertListing(listing_details)
+
+functions = {
+	"case": scrapeCases,
+	"cpu": scrapeCPUs,
+	"gpu": scrapeGPUs,
+	"motherboard": scrapeMotherboards,
+	"ram": scrapeRAMs,
+	"os": scrapeOSes,
+	"optical": scrapeOptical,
+	"storage": scrapeStorage
+}
+
 try:
 	connection = mysql.connector.connect(host = credentials.dbhost, \
 	user = credentials.user, passwd = credentials.passwd, db = credentials.db, port = credentials.port)
@@ -543,11 +583,12 @@ doUpdate = False;
 if "--update" in sys.argv:
 	doUpdate = True;
 
-scrapeCases()
-scrapeCPUs()
-scrapeGPUs()
-scrapeMotherboards()
-scrapeRAMs()
-scrapeOSes()
-scrapeOptical()
-scrapeStorage()
+if "--force-update" in sys.argv:
+	updateAll()
+	sys.exit(0)
+
+if "--type" in sys.argv:
+	functions[sys.argv[sys.argv.index("--type") + 1]]()
+else:
+	for func in functions:
+		func()
