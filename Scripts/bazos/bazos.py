@@ -53,7 +53,8 @@ def loadListing(url):
 	for word in blacklist:
 		if word in searchable:
 			return False
-	if "cena v eur" in searchable:
+	m = re.search(r'cena.*v eur', searchable)
+	if m:
 		listing['price'] = int(listing['price'] * 26.1)
 	if ("nove" in searchable or "novy" in searchable or "nova" in searchable or "novou" in searchable or "nerozbalen" in searchable) and not "jako nov" in searchable:
 		listing['item_condition'] = 'new'
@@ -591,4 +592,4 @@ if "--type" in sys.argv:
 	functions[sys.argv[sys.argv.index("--type") + 1]]()
 else:
 	for func in functions:
-		func()
+		functions[func]()
