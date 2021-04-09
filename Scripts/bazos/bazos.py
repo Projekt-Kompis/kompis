@@ -49,7 +49,7 @@ def loadListing(url):
 	listing['location'] = information['Lokalita:'].find_next_sibling('td').text
 	listing['time_created'] = datetimeobject.strftime('%Y-%m-%d %H:%M:%S')
 	searchable = unidecode.unidecode(listing['name'].lower() + listing['description'].lower()) #unidecode removes diacritics
-	blacklist = ['koupim', 'prodano', 'vymenim', 'nefunkcn', 'rozbit', 'poskozen']
+	blacklist = ['koupim', 'prodano', 'vymenim', 'nefunkcn', 'rozbit', 'poskozen', 'shanim', 'hledam', 'objednam', 'vadna', 'diskstation', 'nahradni dil']
 	for word in blacklist:
 		if word in searchable:
 			return False
@@ -123,39 +123,44 @@ def getMatchingCPUSocket(title, description, sockets):
 def getMatchingDDRVersion(title, description):
 	#TODO: group by searching so it can find the most frequent ddr version if its not mentioned in the listing
 	searchable = unidecode.unidecode(title.lower() + description.lower())
+	if "ddr400" in searchable:
+		return 1
 	for x in range(5):
 		if f"ddr{x}" in searchable:
 			return x
-	return 4
+	return 3
 
 def getRAMSize(title):
 	title = title.lower()
-	m = re.search('[0-9]*x[0-9]*', title)
-	multiplier = 1
 	size = 0
-	if m:
-		found = m.group(0)
-		split = found.split("x")
-		try:
-			size = int(split[0]) * int(split[1])
-		except:
-			size = 0
-	if "gb" in title:
+	multiplier = 1
+	if "mb" in title:
+		unit = "mb"
+	elif "gb" in title:
 		multiplier = 1024
 		unit = "gb"
-	elif "mb" in title:
-		unit = "mb"
 	else:
 		print("Unable to determine RAM size")
 		return 0
+	try:
+		size = int(re.findall(r'\d+', title.split(unit)[0].strip())[-1])
+	except:
+		size = 0
 	if size == 0:
-		m = re.search(r'\d+', title.split(unit)[0].strip())
+		m = re.search('[0-9]x[0-9]*', title)
 		if m:
+			found = m.group(0)
+			split = found.split("x")
 			try:
-				size = int(m.group(0))
+				size = int(split[0]) * int(split[1])
 			except:
-				return 0
-	return size * multiplier
+				size = 0
+	size = size * multiplier
+	if(size > (64*1024)):
+		print("RAM size more than 64 GB, assuming invalid")
+		return 0
+	print(size)
+	return size
 
 def getStorageSize(title):
 	title = title.lower()
@@ -177,6 +182,22 @@ def getStorageSize(title):
 	except:
 		print(f"> {title}")
 		print("Unable to determine storage size")
+		return 0
+
+def getPSUWattage(title, description):
+	searchable = unidecode.unidecode(title.lower() + description.lower())
+	try:
+		if "w" in searchable:
+			return int(re.findall(r'\d+', searchable.split("w")[0].strip())[-1])
+		else:
+			numbers = re.sub(r'[^0-9 ]', '', searchable).split(' ')
+			for number in numbers:
+				if not number == '' and int(number) > 250 and int(number) < 1500:
+					return int(number)
+			raise Exception('no wattage')
+	except:
+		print(f"> {title}")
+		print("Unable to determine PSU wattage")
 		return 0
 
 def getStorageType(title, description):
@@ -243,7 +264,7 @@ def getMatchingRAMSpeed(title, ddr_version):
 def insertListing(listing):
 	print(f"Inserting: {listing['name']}")
 	cursor = connection.cursor()
-	sqlIN = "INSERT INTO listing (store, item_condition, price, author, location, name, description, store_url, part_id, time_created) VALUES ('bazos', %s, %s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE part_id = VALUES(part_id), description = VALUES(description), price = VALUES(price)"
+	sqlIN = "INSERT INTO listing (store, item_condition, price, author, location, name, description, store_url, part_id, time_created) VALUES ('bazos', %s, %s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE part_id = VALUES(part_id), description = VALUES(description), price = VALUES(price), is_invalid = 0"
 	sqlVAL = listing['item_condition'], listing['price'], listing['author'], listing['location'], listing['name'], listing['description'], listing['store_url'], listing['part_id'], listing['time_created']
 	cursor.execute(sqlIN, sqlVAL)
 	connection.commit()
@@ -266,10 +287,19 @@ def insertPartMotherboard(part):
 	connection.commit()
 	return cursor.lastrowid
 
+def insertPartCooler(part):
+	print(f"Inserting: {str(part['part_id'])}")
+	cursor = connection.cursor()
+	sqlIN = "INSERT INTO part_cooler (cpu_socket, part_id) VALUES (%s, %s) ON DUPLICATE KEY UPDATE cpu_socket = VALUES(cpu_socket), id=LAST_INSERT_ID(id)"
+	sqlVAL = part['cpu_socket'], part['part_id']
+	cursor.execute(sqlIN, sqlVAL)
+	connection.commit()
+	return cursor.lastrowid
+
 def insertPartRAM(part):
 	print(f"Inserting: {str(part['part_id'])}")
 	cursor = connection.cursor()
-	sqlIN = "INSERT INTO part_ram (ddr_version, speed, size, part_id) VALUES (%s, %s, %s, %s) ON DUPLICATE KEY UPDATE ddr_version = VALUES(ddr_version), speed = VALUES(speed), id=LAST_INSERT_ID(id)"
+	sqlIN = "INSERT INTO part_ram (ddr_version, speed, size, part_id) VALUES (%s, %s, %s, %s) ON DUPLICATE KEY UPDATE ddr_version = VALUES(ddr_version), speed = VALUES(speed), size = VALUES(size), id=LAST_INSERT_ID(id)"
 	sqlVAL = part['ddr_version'], part['speed'], part['size'], part['part_id']
 	cursor.execute(sqlIN, sqlVAL)
 	connection.commit()
@@ -289,6 +319,15 @@ def insertPartCase(part):
 	cursor = connection.cursor()
 	sqlIN = "INSERT INTO part_case (motherboard_form_factor, psu_form_factor, part_id) VALUES (%s, %s, %s) ON DUPLICATE KEY UPDATE motherboard_form_factor = VALUES(motherboard_form_factor), psu_form_factor = VALUES(psu_form_factor), id=LAST_INSERT_ID(id)"
 	sqlVAL = part['motherboard_form_factor'], part['psu_form_factor'], part['part_id']
+	cursor.execute(sqlIN, sqlVAL)
+	connection.commit()
+	return cursor.lastrowid
+
+def insertPartPSU(part):
+	print(f"Inserting: {str(part['part_id'])}")
+	cursor = connection.cursor()
+	sqlIN = "INSERT INTO part_psu (wattage, psu_form_factor, part_id) VALUES (%s, %s, %s) ON DUPLICATE KEY UPDATE wattage = VALUES(wattage), psu_form_factor = VALUES(psu_form_factor), id=LAST_INSERT_ID(id)"
+	sqlVAL = part['wattage'], part['psu_form_factor'], part['part_id']
 	cursor.execute(sqlIN, sqlVAL)
 	connection.commit()
 	return cursor.lastrowid
@@ -336,11 +375,23 @@ def isOSWithInvoice(title, description):
 
 def isCaseListing(title, description):
 	searchable = unidecode.unidecode(title.lower() + description.lower())
-	return "case" in searchable or "skrin" in searchable
+	return "case" in searchable or "skrin" in searchable or "define r" in searchable
+
+def isPSUListing(title, description):
+	searchable = unidecode.unidecode(title.lower() + description.lower())
+	return ("zdroj" in searchable and not "sada hrebinku" in searchable and not "server ibm" in searchable)
 
 def isOpticalDrive(title, description):
 	searchable = unidecode.unidecode(title.lower() + description.lower())
 	return ("mechanik" in searchable or "vypalovack" in searchable) and "disket" not in searchable
+
+def isGPUCooler(title, description):
+	searchable = unidecode.unidecode(title.lower() + description.lower())
+	return "vodni blok" in searchable
+
+def isRAMInvalid(title, description):
+	searchable = unidecode.unidecode(title.lower() + description.lower())
+	return "flash" in searchable or "sodimm" in searchable or "so-dimm" in searchable or "karta" in searchable or "fleska" in searchable
 
 def scrapeCPUs():
 	models = getAllCPUModels()
@@ -372,7 +423,7 @@ def scrapeGPUs():
 			if isListingPresent(listing) and not doUpdate:
 				return
 			listing_details = loadListing(listing)
-			if not listing_details:
+			if not listing_details or isGPUCooler(listing_details['name'], listing_details['description']):
 				continue
 			listing_details['part_id'] = getMatchingModelID(listing_details['name'], listing_details['description'], models)
 			if not listing_details['part_id']:
@@ -421,7 +472,7 @@ def scrapeRAMs():
 			if isListingPresent(listing) and not doUpdate:
 				return
 			listing_details = loadListing(listing)
-			if not listing_details:
+			if not listing_details or isRAMInvalid(listing_details['name'], listing_details['description']):
 				continue
 			part['model'] = listing_details['name']
 			part['brand'] = listing_details['name'].split(" ")[0]
@@ -528,11 +579,11 @@ def scrapeCases():
 		for listing in listings:
 			part = OrderedDict();
 			part_case = OrderedDict();
-			if isListingPresent(listing) and not doUpdate:
-				return
 			listing_details = loadListing(listing)
 			if not listing_details or not isCaseListing(listing_details['name'], listing_details['description']):
 				continue
+			if isListingPresent(listing) and not doUpdate:
+				return
 			part['model'] = listing_details['name']
 			part['brand'] = listing_details['name'].split(" ")[0]
 			part['type'] = 'case'
@@ -543,6 +594,59 @@ def scrapeCases():
 			print("==================")
 			listing_details['part_id'] = part_case['part_id'] = insertPart(part)
 			insertPartCase(part_case)
+			insertListing(listing_details)
+		page += 20
+
+def scrapePSUs():
+	page = 0;
+	while True:
+		listings = scrapePage(f"https://pc.bazos.cz/case/{page}/")
+		if not listings:
+			return
+		for listing in listings:
+			part = OrderedDict();
+			part_psu = OrderedDict();
+			listing_details = loadListing(listing)
+			if not listing_details or not isPSUListing(listing_details['name'], listing_details['description']) or isCaseListing(listing_details['name'], listing_details['description']):
+				continue
+			if isListingPresent(listing) and not doUpdate:
+				return
+			part['brand'] = listing_details['name'].split(" ")[0]
+			part['type'] = 'psu'
+			part_psu['wattage'] = getPSUWattage(listing_details['name'], listing_details['description'])
+			if part_psu['wattage'] < 200:
+				continue
+			part_psu['psu_form_factor'] = 'ATX'
+			part['model'] = f"{listing_details['name']} ({part_psu['wattage']} W)"
+			print(part)
+			print(part_psu)
+			print("==================")
+			listing_details['part_id'] = part_psu['part_id'] = insertPart(part)
+			insertPartPSU(part_psu)
+			insertListing(listing_details)
+		page += 20
+
+def scrapeCoolers():
+	sockets = getAllCPUSockets()
+	page = 0;
+	while True:
+		listings = scrapePage(f"https://pc.bazos.cz/chladic/{page}/")
+		if not listings:
+			return
+		for listing in listings:
+			part = OrderedDict();
+			part_cooler = OrderedDict();
+			if isListingPresent(listing) and not doUpdate:
+				return
+			listing_details = loadListing(listing)
+			if not listing_details:
+				continue
+			part['model'] = listing_details['name']
+			part['brand'] = listing_details['name'].split(" ")[0]
+			part['type'] = 'cooler'
+			part_cooler['cpu_socket'] = getMatchingCPUSocket(listing_details['name'], listing_details['description'], sockets)
+			listing_details['part_id'] = part_cooler['part_id'] = insertPart(part)
+			insertPartCooler(part_cooler)
 			insertListing(listing_details)
 		page += 20
 
@@ -563,8 +667,10 @@ def updateAll():
 
 functions = {
 	"case": scrapeCases,
+	"cooler": scrapeCoolers,
 	"cpu": scrapeCPUs,
 	"gpu": scrapeGPUs,
+	"psu": scrapePSUs,
 	"motherboard": scrapeMotherboards,
 	"ram": scrapeRAMs,
 	"os": scrapeOSes,
