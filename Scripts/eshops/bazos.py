@@ -257,7 +257,7 @@ def getMatchingRAMSpeed(title, ddr_version):
 				speed = int(m.group(0))
 			except:
 				return 0
-	if(speed < 400):
+	if speed < 400 or speed > 4500:
 		return 0
 	return speed
 
