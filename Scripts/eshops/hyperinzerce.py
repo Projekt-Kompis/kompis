@@ -21,7 +21,7 @@ def loadListing(url):
 	page = requests.get(url)
 	soup = BeautifulSoup(page.content, 'html.parser')
 
-	if "<b>Inzerát byl vymazán.</b>" in str(page.content.decode('utf-8')):
+	if "Stránka, kterou hledáte, bohužel již nebo ještě neexistuje!" in str(page.content.decode('utf-8')):
 		return False;
 
 	information = OrderedDict()
