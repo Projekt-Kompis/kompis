@@ -45,12 +45,16 @@ def loadListing(url):
 	listing['description'] = description_soup.text.strip()
 	listing['location'] = json_content['offers']['availableAtOrFrom']['name'].strip()
 
-	table = soup.find('table', attrs = {'class': 'ad_attribs'})
-	date_tag_th = table.find('th', text = 'Vložen:')
-	date_tag = date_tag_th.find_next_sibling('td')
-	print(date_tag.text)
-	datetimeobject = datetime.strptime(date_tag.text, '%d.%m.%Y')
-	listing['time_created'] = datetimeobject.strftime('%Y-%m-%d %H:%M:%S')
+	try: #Bazar.cz has an issue where the html code for the description sometimes cuts out midway through which causes our table to be unparseable even though it's present
+		table = soup.find('table', attrs = {'class': 'ad_attribs'})
+		date_tag_th = table.find('th', text = 'Vložen:')
+		date_tag = date_tag_th.find_next_sibling('td')
+		print(date_tag.text)
+		datetimeobject = datetime.strptime(date_tag.text, '%d.%m.%Y')
+		listing['time_created'] = datetimeobject.strftime('%Y-%m-%d %H:%M:%S')
+	except:
+		print("Error while determining time created")
+		listing['time_created'] = '0000-00-00'
 
 	searchable = unidecode.unidecode(listing['name'].lower() + listing['description'].lower()) #unidecode removes diacritics
 	blacklist = ['koupim', 'prodano', 'vymenim', 'nefunkcn', 'rozbit', 'poskozen', 'shanim', 'hledam', 'objednam', 'vadna', 'diskstation', 'nahradni dil']
@@ -82,7 +86,6 @@ def scrapePage(url):
 			continue
 		url = link['href']
 		listings.append(url)
-	print(listings)
 	return listings
 
 def getAllCPUModels():
