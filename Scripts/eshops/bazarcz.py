@@ -72,9 +72,9 @@ def loadListing(url):
 def scrapePage(url):
 	listings = []
 	page = requests.get(url)
-	if "Podobné inzeráty" in page:
-		return []
 	soup = BeautifulSoup(page.content, 'html.parser')
+	if "Nenalezen žadný inzerát." in soup.text:
+		return []
 	tables = soup.find_all('div', attrs = {'class' : 'sale-item'})
 	for row in tables:
 		link = row.find('a', href=True)
