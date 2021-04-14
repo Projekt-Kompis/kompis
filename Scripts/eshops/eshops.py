@@ -1,4 +1,4 @@
-#!/bin/python
+#!/usr/bin/python3
 import sys
 import requests
 import json
@@ -7,31 +7,121 @@ import credentials
 from bs4 import BeautifulSoup
 from collections import OrderedDict
 from fuzzywuzzy import fuzz
-from datetime import datetime
+from datetime import datetime, timedelta
 import unidecode
 import re
 
+global lastListings
+lastListings = []
+
 #TODO: ability to run the script and only update one category of parts
+def printTime(start):
+	end = datetime.now()
+	tdelta = end - start
+	print(start)
+	print(end)
+	print(tdelta)
 
 def doCommonNameReplacements(string):
 	return string.lower().replace("-"," ").replace("ti", " ti").replace("super"," super").replace("  "," ").replace("pen tium","pentium").strip()
 
-def loadListing(url):
+def getItemCondition(searchable):
+	if ("nove" in searchable or "novy" in searchable or "nova" in searchable or "novou" in searchable or "nerozbalen" in searchable) and not "jako nov" in searchable:
+		return 'new'
+	elif "zánovní" in searchable:
+		return 'unpacked'
+	else:
+		return 'used'
+
+def containsBlacklisted(searchable):
+	blacklist = ['koupim', 'prodano', 'vymenim', 'nefunkcn', 'rozbit', 'poskozen', 'shanim', 'hledam', 'objednam', 'vadna', 'diskstation', 'nahradni dil']
+	for word in blacklist:
+		if word in searchable:
+			return True
+	return False
+
+def loadListing(listing, store):
+	if store == "bazos":
+		return loadListingBazos(listing)
+	elif store == "hyperinzerce":
+		return loadListingHyperinzerce(listing)
+	elif store == "bazarcz":
+		return loadListingBazarcz(listing)
+	return False
+
+def loadListingBazos(url):
+	print(url)
+	page = requests.get(url)
+	soup = BeautifulSoup(page.content, 'html.parser')
+
+	if "<b>Inzerát byl vymazán.</b>" in str(page.content.decode('utf-8')):
+		return False;
+
+	information = OrderedDict()
+	title_tag = soup.find('h1', attrs = {'class' : 'nadpis'})
+	date_tag = title_tag.find_next_sibling('span', attrs = {'class' : 'velikost10'})
+	datetimeobject = datetime.strptime(date_tag.text.split("[")[1].split("]")[0], '%d.%m. %Y')
+	description = soup.find('div', attrs = {'class' : 'popisdetail'}).text
+	table = soup.find('td', attrs = {'class': 'listadvlevo'}).find('table')
+	table_rows = table.find_all('tr')
+	for row in table_rows:
+		table_columns = row.find_all('td')
+		information[table_columns[0].text.strip()] = table_columns[1]
+
+	listing = OrderedDict()
+	listing['name'] = title_tag.text
+	listing['author'] = information['Jméno:'].text.strip()
+	listing['price'] = information['Cena:'].text.strip().split(" Kč")[0].replace(" ","")
+	try:
+		listing['price'] = int(listing['price'])
+	except:
+		listing['price'] = 0
+	if listing['price'] < 10 or listing['price'] == 1234: #assuming negotiated price ("cena dohodou")
+		listing['price'] = 0
+	listing['store_url'] = url
+	listing['description'] = description
+	listing['location'] = information['Lokalita:'].find_next_sibling('td').text
+	listing['time_created'] = datetimeobject.strftime('%Y-%m-%d %H:%M:%S')
+	listing['store'] = 'bazos'
+	searchable = unidecode.unidecode(listing['name'].lower() + listing['description'].lower()) #unidecode removes diacritics
+	if containsBlacklisted(searchable):
+		return False
+	m = re.search(r'cena.*v eur', searchable)
+	if m:
+		listing['price'] = int(listing['price'] * 26.1)
+	listing['item_condition'] = getItemCondition(searchable)
+	return listing
+
+def scrapePageBazos(url):
+	listings = []
+	page = requests.get(url)
+	soup = BeautifulSoup(page.content, 'html.parser')
+	tables = soup.find_all('table', attrs = {'class' : 'inzeraty'})
+	for row in tables:
+		link = row.find('a', href=True)
+		if not link:
+			continue
+		url = f"https://pc.bazos.cz{link['href']}"
+		listings.append(url)
+	return listings
+
+def loadListingHyperinzerce(url):
 	print(url)
 	page = requests.get(url)
 	soup = BeautifulSoup(page.content, 'html.parser')
 
 	if "Stránka, kterou hledáte, bohužel již nebo ještě neexistuje!" in str(page.content.decode('utf-8')):
-		return False;
+		return False
 
 	information = OrderedDict()
-	title_tag = soup.find('h1', attrs = {'class' : 'mb-0'})
-	info_row = soup.find('div', attrs = {'class' : 'inz_info_nav border-bottom border-light'})
-	date_tag = info_row.find('span', attrs = {'class': 'text-light'})
-	print(date_tag.text)
-	datetimeobject = datetime.strptime(date_tag.text, '%d.%m.%Y %H:%M')
-	description = soup.find('div', attrs = {'class' : 'col-12 inz_description'}).text
-	print(description)
+	try:
+		title_tag = soup.find('h1', attrs = {'class' : 'mb-0'})
+		info_row = soup.find('div', attrs = {'class' : 'inz_info_nav border-bottom border-light'})
+		date_tag = info_row.find('span', attrs = {'class': 'text-light'})
+		datetimeobject = datetime.strptime(date_tag.text, '%d.%m.%Y %H:%M')
+		description = soup.find('div', attrs = {'class' : 'col-12 inz_description'}).text
+	except:
+		return False
 
 	listing = OrderedDict()
 	listing['name'] = title_tag.text.strip()
@@ -51,24 +141,17 @@ def loadListing(url):
 	location_tag = location_head.find_next_sibling('div')
 	listing['location'] = location_tag.text.strip()
 	listing['time_created'] = datetimeobject.strftime('%Y-%m-%d %H:%M:%S')
+	listing['store'] = 'hyperinzerce'
 	searchable = unidecode.unidecode(listing['name'].lower() + listing['description'].lower()) #unidecode removes diacritics
-	blacklist = ['koupim', 'prodano', 'vymenim', 'nefunkcn', 'rozbit', 'poskozen', 'shanim', 'hledam', 'objednam', 'vadna', 'diskstation', 'nahradni dil']
-	for word in blacklist:
-		if word in searchable:
-			return False
+	if containsBlacklisted(searchable):
+		return False
 	m = re.search(r'cena.*v eur', searchable)
 	if m:
 		listing['price'] = int(listing['price'] * 26.1)
-	if ("nove" in searchable or "novy" in searchable or "nova" in searchable or "novou" in searchable or "nerozbalen" in searchable) and not "jako nov" in searchable:
-		listing['item_condition'] = 'new'
-	elif "zánovní" in searchable:
-		listing['item_condition'] = 'unpacked'
-	else:
-		listing['item_condition'] = 'used'
-	print(listing)
+	listing['item_condition'] = getItemCondition(searchable)
 	return listing
 
-def scrapePage(url):
+def scrapePageHyperinzerce(url):
 	listings = []
 	page = requests.get(url)
 	soup = BeautifulSoup(page.content, 'html.parser')
@@ -80,6 +163,74 @@ def scrapePage(url):
 		url = link['href']
 		if "https://pocitace.hyperinzerce.cz" not in url:
 			continue
+		listings.append(url)
+	global lastListings
+	if listings == lastListings:
+		return []
+	lastListings = listings
+	return listings
+
+def loadListingBazarcz(url):
+	print(url)
+	listing = OrderedDict()
+	page = requests.get(url)
+	soup = BeautifulSoup(page.content, 'html.parser')
+
+	if "Požadovaný inzerát nenalezen. Prohlédněte si podobné nabídky na našem bazaru." in str(page.content.decode('utf-8')):
+		return False;
+
+	information = OrderedDict()
+	json_tag = soup.find('script', attrs = {'type' : 'application/ld+json'})
+	json_string = json_tag.string.replace("\n","").replace("\r","").replace("\t","")
+	json_content = json.loads(json_string)['mainEntity']
+	listing['name'] = json_content['name']
+	listing['author'] = soup.find('div', attrs = {'class' : 'ico seller'}).text
+	listing['price'] = json_content['offers']['price']
+	if json_content['offers']['priceCurrency'] != "CZ":
+		return False
+	try:
+		listing['price'] = int(listing['price'])
+	except:
+		listing['price'] = 0
+	if listing['price'] < 10 or listing['price'] == 1234: #assuming negotiated price ("cena dohodou")
+		listing['price'] = 0
+	listing['store_url'] = url
+	description_soup = BeautifulSoup(json_content['description'], 'html.parser')
+	listing['description'] = description_soup.text.strip()
+	listing['location'] = json_content['offers']['availableAtOrFrom']['name'].strip()
+	listing['store'] = 'bazarcz'
+
+	try: #Bazar.cz has an issue where the html code for the description sometimes cuts out midway through which causes our table to be unparseable even though it's present
+		table = soup.find('table', attrs = {'class': 'ad_attribs'})
+		date_tag_th = table.find('th', text = 'Vložen:')
+		date_tag = date_tag_th.find_next_sibling('td')
+		datetimeobject = datetime.strptime(date_tag.text, '%d.%m.%Y')
+		listing['time_created'] = datetimeobject.strftime('%Y-%m-%d %H:%M:%S')
+	except:
+		print("Error while determining time created")
+		listing['time_created'] = '0000-00-00'
+
+	searchable = unidecode.unidecode(listing['name'].lower() + listing['description'].lower()) #unidecode removes diacritics
+	if containsBlacklisted(searchable):
+		return False
+	m = re.search(r'cena.*v eur', searchable)
+	if m:
+		listing['price'] = int(listing['price'] * 26.1)
+	listing['item_condition'] = getItemCondition(searchable)
+	return listing
+
+def scrapePageBazarcz(url):
+	listings = []
+	page = requests.get(url)
+	soup = BeautifulSoup(page.content, 'html.parser')
+	if "Nenalezen žadný inzerát." in soup.text:
+		return []
+	tables = soup.find_all('div', attrs = {'class' : 'sale-item'})
+	for row in tables:
+		link = row.find('a', href=True)
+		if not link:
+			continue
+		url = link['href']
 		listings.append(url)
 	return listings
 
@@ -270,8 +421,8 @@ def getMatchingRAMSpeed(title, ddr_version):
 def insertListing(listing):
 	print(f"Inserting: {listing['name']}")
 	cursor = connection.cursor()
-	sqlIN = "INSERT INTO listing (store, item_condition, price, author, location, name, description, store_url, part_id, time_created) VALUES ('hyperinzerce', %s, %s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE part_id = VALUES(part_id), description = VALUES(description), price = VALUES(price), is_invalid = 0"
-	sqlVAL = listing['item_condition'], listing['price'], listing['author'], listing['location'], listing['name'], listing['description'], listing['store_url'], listing['part_id'], listing['time_created']
+	sqlIN = "INSERT INTO listing (store, item_condition, price, author, location, name, description, store_url, part_id, time_created) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE part_id = VALUES(part_id), description = VALUES(description), price = VALUES(price), is_invalid = 0"
+	sqlVAL = listing['store'], listing['item_condition'], listing['price'], listing['author'], listing['location'], listing['name'], listing['description'], listing['store_url'], listing['part_id'], listing['time_created']
 	cursor.execute(sqlIN, sqlVAL)
 	connection.commit()
 
@@ -399,17 +550,23 @@ def isRAMInvalid(title, description):
 	searchable = unidecode.unidecode(title.lower() + description.lower())
 	return "flash" in searchable or "sodimm" in searchable or "so-dimm" in searchable or "karta" in searchable or "fleska" in searchable
 
-def scrapeCPUs():
+def scrapeCPUs(store):
 	models = getAllCPUModels()
-	page = 0;
+	page = 1;
 	while True:
-		listings = scrapePage(f"https://pocitace.hyperinzerce.cz/procesory/{page}/")
+		if store == "bazos":
+			bazosPage = (page-1)*20
+			listings = scrapePageBazos(f"https://pc.bazos.cz/procesor/{bazosPage}/")
+		elif store == "hyperinzerce":
+			listings = scrapePageHyperinzerce(f"https://pocitace.hyperinzerce.cz/procesory/{page}/")
+		elif store == "bazarcz":
+			listings = scrapePageBazarcz(f"https://www.bazar.cz/procesory/{page}/")
 		if not listings:
 			return
 		for listing in listings:
 			if isListingPresent(listing) and not doUpdate:
 				return
-			listing_details = loadListing(listing)
+			listing_details = loadListing(listing, store)
 			if not listing_details:
 				continue
 			listing_details['part_id'] = getMatchingModelID(listing_details['name'], listing_details['description'], models)
@@ -418,17 +575,23 @@ def scrapeCPUs():
 			insertListing(listing_details)
 		page += 1
 
-def scrapeGPUs():
+def scrapeGPUs(store):
 	models = getAllGPUModels()
 	page = 1;
 	while True:
-		listings = scrapePage(f"https://pocitace.hyperinzerce.cz/graficke-karty/{page}/")
+		if store == "bazos":
+			listings = scrapePageBazos(f"https://pc.bazos.cz/graficka/{page}/")
+		elif store == "hyperinzerce":
+			listings = scrapePageHyperinzerce(f"https://pocitace.hyperinzerce.cz/graficke-karty/{page}/")
+		elif store == "bazarcz":
+			listings = scrapePageBazarcz(f"https://www.bazar.cz/graficke-karty/{page}/")
+
 		if not listings:
 			return
 		for listing in listings:
 			if isListingPresent(listing) and not doUpdate:
 				return
-			listing_details = loadListing(listing)
+			listing_details = loadListing(listing, store)
 			if not listing_details or isGPUCooler(listing_details['name'], listing_details['description']):
 				continue
 			listing_details['part_id'] = getMatchingModelID(listing_details['name'], listing_details['description'], models)
@@ -437,11 +600,17 @@ def scrapeGPUs():
 			insertListing(listing_details)
 		page += 1
 
-def scrapeMotherboards():
+def scrapeMotherboards(store):
 	sockets = getAllCPUSockets()
-	page = 0;
+	page = 1;
 	while True:
-		listings = scrapePage(f"https://pocitace.hyperinzerce.cz/motherboardy/{page}/")
+		if store == "bazos":
+			bazosPage = (page-1)*20
+			listings = scrapePageBazos(f"https://pc.bazos.cz/motherboard/{page}/")
+		elif store == "hyperinzerce":
+			listings = scrapePageHyperinzerce(f"https://pocitace.hyperinzerce.cz/motherboardy/{page}/")
+		elif store == "bazarcz":
+			listings = scrapePageBazarcz(f"https://www.bazar.cz/zakladni-desky/{page}/")
 		if not listings:
 			return
 		for listing in listings:
@@ -449,7 +618,7 @@ def scrapeMotherboards():
 			part_motherboard = OrderedDict();
 			if isListingPresent(listing) and not doUpdate:
 				return
-			listing_details = loadListing(listing)
+			listing_details = loadListing(listing, store)
 			if not listing_details:
 				continue
 			part['model'] = listing_details['name']
@@ -463,13 +632,19 @@ def scrapeMotherboards():
 			insertListing(listing_details)
 		page += 1
 
-def scrapeRAMs():
+def scrapeRAMs(store):
 	#TODO: filter out flash disks
 	#TODO: deal with laptop ram
 	#TODO: ddr400 is not ddr4
-	page = 0;
+	page = 1;
 	while True:
-		listings = scrapePage(f"https://pocitace.hyperinzerce.cz/pameti/{page}/")
+		if store == "bazos":
+			bazosPage = (page-1)*20
+			listings = scrapePageBazos(f"https://pc.bazos.cz/pamet/{page}/")
+		elif store == "hyperinzerce":
+			listings = scrapePageHyperinzerce(f"https://pocitace.hyperinzerce.cz/pameti/{page}/")
+		elif store == "bazarcz":
+			listings = scrapePageBazarcz(f"https://www.bazar.cz/pameti/{page}/")
 		if not listings:
 			return
 		for listing in listings:
@@ -477,7 +652,7 @@ def scrapeRAMs():
 			part_ram = OrderedDict();
 			if isListingPresent(listing) and not doUpdate:
 				return
-			listing_details = loadListing(listing)
+			listing_details = loadListing(listing, store)
 			if not listing_details or isRAMInvalid(listing_details['name'], listing_details['description']):
 				continue
 			part['model'] = listing_details['name']
@@ -494,11 +669,17 @@ def scrapeRAMs():
 			insertListing(listing_details)
 		page += 1
 
-def scrapeOSes():
+def scrapeOSes(store):
 	#TODO: filter out listings with no license 
-	page = 0;
+	page = 1;
 	while True:
-		listings = scrapePage(f"https://pocitace.hyperinzerce.cz/operacni-systemy/{page}/")
+		if store == "bazos":
+			bazosPage = (page-1)*20
+			listings = scrapePageBazos(f"https://pc.bazos.cz/software/{page}/")
+		elif store == "hyperinzerce":
+			listings = scrapePageHyperinzerce(f"https://pocitace.hyperinzerce.cz/operacni-systemy/{page}/")
+		elif store == "bazarcz":
+			listings = scrapePageBazarcz(f"https://www.bazar.cz/operacni-systemy/{page}/")
 		if not listings:
 			return
 		for listing in listings:
@@ -506,7 +687,7 @@ def scrapeOSes():
 			part_os = OrderedDict();
 			if isListingPresent(listing) and not doUpdate:
 				return
-			listing_details = loadListing(listing)
+			listing_details = loadListing(listing, store)
 			if not listing_details:
 				continue
 			if "windows " not in listing_details['name'].lower():
@@ -520,10 +701,16 @@ def scrapeOSes():
 			insertListing(listing_details)
 		page += 1
 
-def scrapeOptical():
-	page = 0;
+def scrapeOptical(store):
+	page = 1;
 	while True:
-		listings = scrapePage(f"https://pocitace.hyperinzerce.cz/opticke-mechaniky/{page}/")
+		if store == "bazos":
+			bazosPage = (page-1)*20
+			listings = scrapePageBazos(f"https://pc.bazos.cz/cd/{page}/")
+		elif store == "hyperinzerce":
+			listings = scrapePageHyperinzerce(f"https://pocitace.hyperinzerce.cz/opticke-mechaniky/{page}/")
+		elif store == "bazarcz":
+			listings = scrapePageBazarcz(f"https://www.bazar.cz/cd-mechaniky/{page}/")
 		if not listings:
 			return
 		for listing in listings:
@@ -531,7 +718,7 @@ def scrapeOptical():
 			part_optical = OrderedDict();
 			if isListingPresent(listing) and not doUpdate:
 				return
-			listing_details = loadListing(listing)
+			listing_details = loadListing(listing, store)
 			if not listing_details or not isOpticalDrive(listing_details['name'], listing_details['description']):
 				continue
 			part['model'] = listing_details['name']
@@ -543,10 +730,16 @@ def scrapeOptical():
 			insertListing(listing_details)
 		page += 1
 
-def scrapeStorage():
-	page = 0;
+def scrapeStorage(store):
+	page = 1;
 	while True:
-		listings = scrapePage(f"https://pocitace.hyperinzerce.cz/harddisky/{page}/")
+		if store == "bazos":
+			bazosPage = (page-1)*20
+			listings = scrapePageBazos(f"https://pc.bazos.cz/hdd/{page}/")
+		elif store == "hyperinzerce":
+			listings = scrapePageHyperinzerce(f"https://pocitace.hyperinzerce.cz/harddisky/{page}/")
+		elif store == "bazarcz":
+			listings = scrapePageBazarcz(f"https://www.bazar.cz/pevne-disky/{page}/")
 		if not listings:
 			return
 		for listing in listings:
@@ -554,7 +747,7 @@ def scrapeStorage():
 			part_storage = OrderedDict();
 			if isListingPresent(listing) and not doUpdate:
 				return
-			listing_details = loadListing(listing)
+			listing_details = loadListing(listing, store)
 			if not listing_details:
 				continue
 			part['model'] = listing_details['name']
@@ -576,17 +769,23 @@ def scrapeStorage():
 			insertListing(listing_details)
 		page += 1
 
-def scrapeCases():
-	page = 0;
+def scrapeCases(store):
+	page = 1;
 	while True:
-		listings = scrapePage(f"https://pocitace.hyperinzerce.cz/pc-skrine-zdroje/{page}/")
+		if store == "bazos":
+			bazosPage = (page-1)*20
+			listings = scrapePageBazos(f"https://pc.bazos.cz/case/{page}/")
+		elif store == "hyperinzerce":
+			listings = scrapePageHyperinzerce(f"https://pocitace.hyperinzerce.cz/pc-skrine-zdroje/{page}/")
+		elif store == "bazarcz":
+			listings = scrapePageBazarcz(f"https://www.bazar.cz/pocitacove-skrine/{page}/")
 		if not listings:
 			return
 		for listing in listings:
 			part = OrderedDict();
 			part_case = OrderedDict();
-			listing_details = loadListing(listing)
-			if not listing_details:
+			listing_details = loadListing(listing, store)
+			if not listing_details or not isCaseListing(listing_details['name'], listing_details['description']):
 				continue
 			if isListingPresent(listing) and not doUpdate:
 				return
@@ -603,17 +802,23 @@ def scrapeCases():
 			insertListing(listing_details)
 		page += 1
 
-def scrapePSUs():
-	page = 0;
+def scrapePSUs(store):
+	page = 1;
 	while True:
-		listings = scrapePage(f"https://pocitace.hyperinzerce.cz/pc-zdroje/{page}/")
+		if store == "bazos":
+			bazosPage = (page-1)*20
+			listings = scrapePageBazos(f"https://pc.bazos.cz/case/{page}/")
+		elif store == "hyperinzerce":
+			listings = scrapePageHyperinzerce(f"https://pocitace.hyperinzerce.cz/pc-zdroje/{page}/")
+		elif store == "bazarcz":
+			listings = scrapePageBazarcz(f"https://www.bazar.cz/dily-komponenty-zdroje/{page}/")
 		if not listings:
 			return
 		for listing in listings:
 			part = OrderedDict();
 			part_psu = OrderedDict();
-			listing_details = loadListing(listing)
-			if not listing_details:
+			listing_details = loadListing(listing, store)
+			if not listing_details or not isPSUListing(listing_details['name'], listing_details['description']) or isCaseListing(listing_details['name'], listing_details['description']):
 				continue
 			if isListingPresent(listing) and not doUpdate:
 				return
@@ -632,11 +837,17 @@ def scrapePSUs():
 			insertListing(listing_details)
 		page += 1
 
-def scrapeCoolers():
+def scrapeCoolers(store):
 	sockets = getAllCPUSockets()
-	page = 0;
+	page = 1;
 	while True:
-		listings = scrapePage(f"https://pocitace.hyperinzerce.cz/vetraky-chladice/{page}/")
+		if store == "bazos":
+			bazosPage = (page-1)*20
+			listings = scrapePageBazos(f"https://pc.bazos.cz/chladic/{page}/")
+		elif store == "hyperinzerce":
+			listings = scrapePageHyperinzerce(f"https://pocitace.hyperinzerce.cz/vetraky-chladice/{page}/")
+		elif store == "bazarcz":
+			listings = scrapePageBazarcz(f"https://www.bazar.cz/dily-komponenty-chladice/{page}/")
 		if not listings:
 			return
 		for listing in listings:
@@ -644,7 +855,7 @@ def scrapeCoolers():
 			part_cooler = OrderedDict();
 			if isListingPresent(listing) and not doUpdate:
 				return
-			listing_details = loadListing(listing)
+			listing_details = loadListing(listing, store)
 			if not listing_details:
 				continue
 			part['model'] = listing_details['name']
@@ -656,15 +867,17 @@ def scrapeCoolers():
 			insertListing(listing_details)
 		page += 1
 
-def updateAll():
+def updateAll(store):
 	cursor = connection.cursor()
-	cursor.execute("SELECT part_id, store_url FROM listing WHERE is_invalid = 0 AND store = 'hyperinzerce'")
+	sqlIN = "SELECT part_id, store_url FROM listing WHERE store = %s AND is_invalid = %s"
+	sqlVAL = store, 0
+	cursor.execute(sqlIN, sqlVAL)
 	listings = cursor.fetchall()
 	for listing in listings:
 		print(listing)
 		part = OrderedDict();
 		part_case = OrderedDict();
-		listing_details = loadListing(listing[1])
+		listing_details = loadListing(listing[1], store)
 		if not listing_details:
 			setListingInvalid(listing[1])
 			continue
@@ -684,6 +897,10 @@ functions = {
 	"storage": scrapeStorage
 }
 
+stores = ["bazos", "hyperinzerce", "bazarcz"]
+
+start = datetime.now()
+
 try:
 	connection = mysql.connector.connect(host = credentials.dbhost, \
 	user = credentials.user, passwd = credentials.passwd, db = credentials.db, port = credentials.port)
@@ -696,12 +913,22 @@ doUpdate = False;
 if "--update" in sys.argv:
 	doUpdate = True;
 
+if "--store" in sys.argv:
+	stores = [sys.argv[sys.argv.index("--store") + 1]]
+
 if "--force-update" in sys.argv:
-	updateAll()
+	for store in stores:
+		updateAll(store)
+	printTime(start)
 	sys.exit(0)
 
 if "--type" in sys.argv:
-	functions[sys.argv[sys.argv.index("--type") + 1]]()
+	for store in stores:
+		functions[sys.argv[sys.argv.index("--type") + 1]](store)
 else:
 	for func in functions:
-		functions[func]()
+		for store in stores:
+			functions[func](store)
+
+
+printTime(start)
