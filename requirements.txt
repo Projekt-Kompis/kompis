@@ -1,0 +1,7 @@
+mysql
+mysql-connector
+fuzzywuzzy
+unidecode
+beautifulsoup4
+requests
+python-Levenshtein
